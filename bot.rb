@@ -1,6 +1,7 @@
 require "telegram/bot"
+require_relative "credentials"
 
-token = "6521163894:AAH86A9HMU37My4dS-NA1LyKrwqBumerW1k"
+token = TELEGRAM_TOKEN.freeze
 
 Telegram::Bot::Client.run(token) do |bot|
   game = {
@@ -64,12 +65,12 @@ Telegram::Bot::Client.run(token) do |bot|
       # ========== Bot selects ===============
       available = []
 
-      game.map do |key,value| 
+      game.map do |key,value|
         if value == "⬜️"
           available << key
         end
       end
-      
+
       game[available[rand(available.length)]] = bot_value
       # ======================================
 
@@ -90,7 +91,7 @@ Telegram::Bot::Client.run(token) do |bot|
       new_keyboard << line_hash
       # ======================================
 
-      if game[:A1] == game[:A2] && game[:A1] == game[:A3] && game[:A3] != "⬜️" || 
+      if game[:A1] == game[:A2] && game[:A1] == game[:A3] && game[:A3] != "⬜️" ||
         game[:B1] == game[:B2] && game[:B1] == game[:B3] && game[:B3] != "⬜️"  || # HORIZONTAL
         game[:C1] == game[:C2] && game[:C1] == game[:C3] && game[:C3] != "⬜️"  || # HORIZONTAL
         game[:A1] == game[:B1] && game[:A1] == game[:C1] && game[:C1] != "⬜️"  || # VERTICAL
@@ -112,7 +113,7 @@ Telegram::Bot::Client.run(token) do |bot|
       my_value = message.text[-3..-2].to_sym
       game[my_value] = user_value
 
-      if game[:A1] == game[:A2] && game[:A1] == game[:A3] && game[:A3] != "⬜️" || 
+      if game[:A1] == game[:A2] && game[:A1] == game[:A3] && game[:A3] != "⬜️" ||
         game[:B1] == game[:B2] && game[:B1] == game[:B3] && game[:B3] != "⬜️"  || # HORIZONTAL
         game[:C1] == game[:C2] && game[:C1] == game[:C3] && game[:C3] != "⬜️"  || # HORIZONTAL
         game[:A1] == game[:B1] && game[:A1] == game[:C1] && game[:C1] != "⬜️"  || # VERTICAL
@@ -143,14 +144,14 @@ Telegram::Bot::Client.run(token) do |bot|
         # ========== Bot selects ===============
         available = []
 
-        game.map do |key,value| 
+        game.map do |key,value|
           if value == "⬜️"
             available << key
           end
         end
-        
+
         game[available[rand(available.length)]] = bot_value
-        if game[:A1] == game[:A2] && game[:A1] == game[:A3] && game[:A3] != "⬜️" || 
+        if game[:A1] == game[:A2] && game[:A1] == game[:A3] && game[:A3] != "⬜️" ||
           game[:B1] == game[:B2] && game[:B1] == game[:B3] && game[:B3] != "⬜️"  || # HORIZONTAL
           game[:C1] == game[:C2] && game[:C1] == game[:C3] && game[:C3] != "⬜️"  || # HORIZONTAL
           game[:A1] == game[:B1] && game[:A1] == game[:C1] && game[:C1] != "⬜️"  || # VERTICAL
@@ -158,7 +159,7 @@ Telegram::Bot::Client.run(token) do |bot|
           game[:A3] == game[:B3] && game[:A3] == game[:C3] && game[:C3] != "⬜️"  || # VERTICAL
           game[:A1] == game[:B2] && game[:A1] == game[:C3] && game[:C3] != "⬜️"  || # DIAGONAL
           game[:A3] == game[:B2] && game[:A3] == game[:C1] && game[:C1] != "⬜️"  # DIAGONAL
-  
+
           bot.api.send_message(chat_id: message.chat.id, text: game.values.join(''))
           bot.api.send_message(chat_id: message.chat.id, text: "Game Over")
         else
@@ -175,6 +176,6 @@ Telegram::Bot::Client.run(token) do |bot|
 
       bot.api.send_message(chat_id: message.chat.id, text: game.values.join(''),reply_markup: answers)
     end
-    
+
   end
 end
