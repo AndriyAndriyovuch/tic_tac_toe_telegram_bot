@@ -2,13 +2,17 @@ require_relative "credentials"
 require "telegram/bot"
 
 class TelegramBot
+  attr_accessor :game, :user_value, :bot_value
+
   TOKEN = TELEGRAM_TOKEN.freeze
 
   def run
-    game = new_game
+    @game = new_game
+    @user_value = nil
+    @bot_value = nil
 
     bot.listen do |message|
-      new_message(message, game)
+      new_message(message, @game, @user_value, @bot_value)
     end
   end
 
@@ -16,70 +20,67 @@ class TelegramBot
     Telegram::Bot::Client.run(TOKEN) { |bot| return bot }
   end
 
-  def new_message(message, game)
+  def new_message(message, game, user_value, bot_value)
     my_message = message.text.include?("⬜️") ? "⬜️" : message.text
 
     case my_message
 
-    when "/start"
-      game = new_game
+    when "/new_game"
+      @game = new_game
 
-      send_message(message, "Hi #{message.from.first_name}, let's play the game")
-      send_message(message, game[:fields].values.join(''))
+      bot.api.send_message(chat_id: message.chat.id, text: "Hi #{message.from.first_name}, let's play the game")
+      bot.api.send_message(chat_id: message.chat.id, text: @game.values.join(''))
 
       select_fighter(message)
+      
     when "I'll start: ✖️"
-      game[:user_value] = "✖️"
-      game[:bot_value] = "⚫️"
+      @user_value = "✖️"
+      @bot_value = "⚫️"
 
-      send_message(message, "Select one:")
-      bot.api.send_message(chat_id: message.chat.id, text: game[:fields].values.join(''),reply_markup: collect_keyboard(game))
+      bot.api.send_message(chat_id: message.chat.id, text: 'Select one:')      
+      bot.api.send_message(chat_id: message.chat.id, text: @game.values.join(''),reply_markup: collect_keyboard(game))
 
     when "You first: ⚫️"
-      game[:user_value] = "⚫️"
-      game[:bot_value] = "✖️"
+      @user_value = "⚫️"
+      @bot_value = "✖️"
 
-      bot_choose(game)
+      bot_choose(game, bot_value)
 
-      if game_over?(game)
-        send_message(message, game[:fields].values.join(''))
-        send_message(message, "Game Over")
-      else
-        send_message(message, "Select one:")
-        bot.api.send_message(chat_id: message.chat.id, text: game[:fields].values.join(''),reply_markup: collect_keyboard(game))
-      end
+      bot.api.send_message(chat_id: message.chat.id, text: 'Select one:')
+      bot.api.send_message(chat_id: message.chat.id, text: @game.values.join(''),reply_markup: collect_keyboard(game))
 
     when "⬜️"
       my_value = message.text[-3..-2].to_sym
-      game[:user_value]
-      game[:fields][my_value] = game[:user_value]
+      @game[my_value] = user_value
 
       if game_over?(game)
-        bot.api.send_message(chat_id: message.chat.id, text: game[:fields].values.join(''))
-        send_message(message, "Game Over")
+        bot.api.send_message(chat_id: message.chat.id, text: @game.values.join(''))
+        bot.api.send_message(chat_id: message.chat.id, text: 'Game Over!')
       else
-        bot_choose(game)
+        bot_choose(game, bot_value)
 
         if game_over?(game)
-          bot.api.send_message(chat_id: message.chat.id, text: game[:fields].values.join(''))
-          send_message(message, "Game Over")
+          bot.api.send_message(chat_id: message.chat.id, text: @game.values.join(''))
+          bot.api.send_message(chat_id: message.chat.id, text: 'Game Over!')
         else
-          send_message(message, "Select one:")
-          bot.api.send_message(chat_id: message.chat.id, text: game[:fields].values.join(''),reply_markup: collect_keyboard(game))
+          bot.api.send_message(chat_id: message.chat.id, text: 'Select one:')
+          bot.api.send_message(chat_id: message.chat.id, text: @game.values.join(''),reply_markup: collect_keyboard(game))
         end
       end
+
+    when '/stop'
+      kb = Telegram::Bot::Types::ReplyKeyboardRemove.new(remove_keyboard: true)
+
+      bot.api.send_message(chat_id: message.chat.id, text: 'Sorry to see you go :(', reply_markup: kb)
+      @game = nil
     end
   end
 
   def new_game
     {
-      fields: {
-        'A1': "⬜️" ,  'A2': "⬜️" ,  'A3': "⬜️" , 'next_1': "\n",
-        'B1': "⬜️" ,  'B2': "⬜️" ,  'B3': "⬜️" , 'next_2': "\n",
-        'C1': "⬜️" ,  'C2': "⬜️" ,  'C3': "⬜️"
-      },
-      user_value: "",
-      bot_value: ""
+      'A1': "⬜️" ,  'A2': "⬜️" ,  'A3': "⬜️" , 'next_1': "\n",
+      'B1': "⬜️" ,  'B2': "⬜️" ,  'B3': "⬜️" , 'next_2': "\n",
+      'C1': "⬜️" ,  'C2': "⬜️" ,  'C3': "⬜️"
     }
   end
 
@@ -99,7 +100,7 @@ class TelegramBot
     new_keyboard = []
     line_hash = []
 
-    game[:fields].each do |key, value|
+    @game.each do |key, value|
       if key[0] != "n"
         line_hash << {text: "#{value} (#{key})"}
       else
@@ -113,30 +114,26 @@ class TelegramBot
     Telegram::Bot::Types::ReplyKeyboardMarkup.new(keyboard: new_keyboard, one_time_keyboard: true)
   end
 
-  def bot_choose(game)
+  def bot_choose(game, bot_value)
     available = []
 
-    game[:fields].map do |key,value|
+    @game.map do |key,value|
       if value == "⬜️"
         available << key
       end
     end
 
-    game[:fields][available[rand(available.length)]] = game[:bot_value]
+    @game[available[rand(available.length)]] = bot_value
   end
 
   def game_over?(game)
-    game[:fields][:A1] == game[:fields][:A2] && game[:fields][:A1] == game[:fields][:A3] && game[:fields][:A3] != "⬜️" ||
-        game[:fields][:B1] == game[:fields][:B2] && game[:fields][:B1] == game[:fields][:B3] && game[:fields][:B3] != "⬜️"  || # HORIZONTAL
-        game[:fields][:C1] == game[:fields][:C2] && game[:fields][:C1] == game[:fields][:C3] && game[:fields][:C3] != "⬜️"  || # HORIZONTAL
-        game[:fields][:A1] == game[:fields][:B1] && game[:fields][:A1] == game[:fields][:C1] && game[:fields][:C1] != "⬜️"  || # VERTICAL
-        game[:fields][:A2] == game[:fields][:B2] && game[:fields][:A2] == game[:fields][:C2] && game[:fields][:C2] != "⬜️"  || # VERTICAL
-        game[:fields][:A3] == game[:fields][:B3] && game[:fields][:A3] == game[:fields][:C3] && game[:fields][:C3] != "⬜️"  || # VERTICAL
-        game[:fields][:A1] == game[:fields][:B2] && game[:fields][:A1] == game[:fields][:C3] && game[:fields][:C3] != "⬜️"  || # DIAGONAL
-        game[:fields][:A3] == game[:fields][:B2] && game[:fields][:A3] == game[:fields][:C1] && game[:fields][:C1] != "⬜️"  # DIAGONAL
-  end
-
-  def send_message(message, text)
-    bot.api.send_message(chat_id: message.chat.id, text:)
+    @game[:A1] == @game[:A2] && @game[:A1] == @game[:A3] && @game[:A3] != "⬜️" ||
+        @game[:B1] == @game[:B2] && @game[:B1] == @game[:B3] && @game[:B3] != "⬜️"  || # HORIZONTAL
+        @game[:C1] == @game[:C2] && @game[:C1] == @game[:C3] && @game[:C3] != "⬜️"  || # HORIZONTAL
+        @game[:A1] == @game[:B1] && @game[:A1] == @game[:C1] && @game[:C1] != "⬜️"  || # VERTICAL
+        @game[:A2] == @game[:B2] && @game[:A2] == @game[:C2] && @game[:C2] != "⬜️"  || # VERTICAL
+        @game[:A3] == @game[:B3] && @game[:A3] == @game[:C3] && @game[:C3] != "⬜️"  || # VERTICAL
+        @game[:A1] == @game[:B2] && @game[:A1] == @game[:C3] && @game[:C3] != "⬜️"  || # DIAGONAL
+        @game[:A3] == @game[:B2] && @game[:A3] == @game[:C1] && @game[:C1] != "⬜️"  # DIAGONAL
   end
 end
