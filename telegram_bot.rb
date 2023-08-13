@@ -24,20 +24,22 @@ class TelegramBot
     my_message = message.text.include?("⬜️") ? "⬜️" : message.text
 
     case my_message
+    when "/start"
+      menu(message)
 
-    when "/new_game"
+    when "Start a new game"
       @game = new_game
 
       bot.api.send_message(chat_id: message.chat.id, text: "Hi #{message.from.first_name}, let's play the game")
       bot.api.send_message(chat_id: message.chat.id, text: @game.values.join(''))
 
       select_fighter(message)
-      
+
     when "I'll start: ✖️"
       @user_value = "✖️"
       @bot_value = "⚫️"
 
-      bot.api.send_message(chat_id: message.chat.id, text: 'Select one:')      
+      bot.api.send_message(chat_id: message.chat.id, text: 'Select one:')
       bot.api.send_message(chat_id: message.chat.id, text: @game.values.join(''),reply_markup: collect_keyboard(game))
 
     when "You first: ⚫️"
@@ -55,24 +57,33 @@ class TelegramBot
 
       if game_over?(game)
         bot.api.send_message(chat_id: message.chat.id, text: @game.values.join(''))
-        bot.api.send_message(chat_id: message.chat.id, text: 'Game Over!')
+        menu(message)
       else
         bot_choose(game, bot_value)
 
         if game_over?(game)
           bot.api.send_message(chat_id: message.chat.id, text: @game.values.join(''))
-          bot.api.send_message(chat_id: message.chat.id, text: 'Game Over!')
+          menu(message)
         else
           bot.api.send_message(chat_id: message.chat.id, text: 'Select one:')
           bot.api.send_message(chat_id: message.chat.id, text: @game.values.join(''),reply_markup: collect_keyboard(game))
         end
       end
 
-    when '/stop'
+    when "I'm out"
       kb = Telegram::Bot::Types::ReplyKeyboardRemove.new(remove_keyboard: true)
 
       bot.api.send_message(chat_id: message.chat.id, text: 'Sorry to see you go :(', reply_markup: kb)
       @game = nil
+
+
+    else
+      if @user_value.nil?
+        menu(message)
+      else
+        bot.api.send_message(chat_id: message.chat.id, text: 'It;s not correct')
+        bot.api.send_message(chat_id: message.chat.id, text: @game.values.join(''),reply_markup: collect_keyboard(game))
+      end
     end
   end
 
@@ -135,5 +146,20 @@ class TelegramBot
         @game[:A3] == @game[:B3] && @game[:A3] == @game[:C3] && @game[:C3] != "⬜️"  || # VERTICAL
         @game[:A1] == @game[:B2] && @game[:A1] == @game[:C3] && @game[:C3] != "⬜️"  || # DIAGONAL
         @game[:A3] == @game[:B2] && @game[:A3] == @game[:C1] && @game[:C1] != "⬜️"  # DIAGONAL
+  end
+
+  def menu(message)
+    answers =
+        Telegram::Bot::Types::ReplyKeyboardMarkup.new(
+          keyboard: [
+            [{ text: "Start a new game" }, { text: "I'm out" }],
+          ],
+          one_time_keyboard: true
+        )
+
+    bot.api.send_message(chat_id: message.chat.id, text: 'What you want to do?', reply_markup: answers)
+
+    @user_value = nil
+    @bot_value = nil
   end
 end
