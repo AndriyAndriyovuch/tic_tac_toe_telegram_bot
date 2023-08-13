@@ -18,6 +18,7 @@ class TelegramBot
     @bot_value = nil
 
     bot.listen do |message|
+      @message = message
       new_message(message, @game, @user_value, @bot_value)
     end
   end
@@ -35,72 +36,40 @@ class TelegramBot
     when "/start"
       bot.api.send_message(chat_id: message.chat.id, text: "Hi #{message.from.first_name}, let's play the game")
 
-      menu(message)
+      menu
 
     when "Start a new game"
       @game = new_game
-
-      bot.api.send_message(chat_id: message.chat.id, text: @game.values.join(''))
-
       select_fighter(message)
 
     when "I'll start: ✖️"
-      @user_value = "✖️"
-      @bot_value = "⚫️"
+      pin_sides(my_message)
+      next_step
 
-      pinned = bot.api.send_message(chat_id: message.chat.id, text: "Bot:#{@bot_value}\nYou:#{@user_value}")
-      bot.api.pin_chat_message(chat_id: message.chat.id, message_id: pinned['result']['message_id'])
-
-      bot.api.send_message(chat_id: message.chat.id, text: 'Select one:')
-      bot.api.send_message(chat_id: message.chat.id, text: @game.values.join(''),reply_markup: collect_keyboard(game))
-
-      return
     when "You first: ⚫️"
-      @user_value = "⚫️"
-      @bot_value = "✖️"
-
-      pinned = bot.api.send_message(chat_id: message.chat.id, text: "Bot:#{@bot_value}\nYou:#{@user_value}")
-      bot.api.pin_chat_message(chat_id: message.chat.id, message_id: pinned['result']['message_id'])
-
+      pin_sides(my_message)
       bot_choose(game, bot_value)
+      next_step
 
-      bot.api.send_message(chat_id: message.chat.id, text: 'Select one:')
-      bot.api.send_message(chat_id: message.chat.id, text: @game.values.join(''),reply_markup: collect_keyboard(game))
     when "⬜️"
       my_value = message.text[-3..-2].to_sym
       @game[my_value] = user_value
 
-
       if game_over?(game)
-        bot.api.send_message(chat_id: message.chat.id, text: @game.values.join(''))
-        bot.api.send_message(chat_id: message.chat.id, text: @winner_message)
-        menu(message)
+        finish_game
       else
         if @game.values.include?('⬜️')
           bot_choose(game, bot_value)
 
           if game_over?(game)
-            bot.api.send_message(chat_id: message.chat.id, text: @game.values.join(''))
-            bot.api.send_message(chat_id: message.chat.id, text: @winner_message)
-            menu(message)
+            finish_game
           else
-            if @game.values.include?('⬜️')
-              bot.api.send_message(chat_id: message.chat.id, text: 'Select one:')
-              bot.api.send_message(chat_id: message.chat.id, text: @game.values.join(''),reply_markup: collect_keyboard(game))
-            else
-              bot.api.send_message(chat_id: message.chat.id, text: @game.values.join(''))
-              bot.api.send_message(chat_id: message.chat.id, text: 'No one wins, great game')
-              menu(message)
-            end
+            @game.values.include?('⬜️') ? next_step : nobody_win
           end
         else
-          bot.api.send_message(chat_id: message.chat.id, text: @game.values.join(''))
-          bot.api.send_message(chat_id: message.chat.id, text: 'No one wins, great game')
-          menu(message)
+          nobody_win
         end
       end
-
-
 
     when "I'm out"
       kb = Telegram::Bot::Types::ReplyKeyboardMarkup.new(keyboard: [[{ text: "/start" }]], one_time_keyboard: true)
@@ -109,12 +78,7 @@ class TelegramBot
       @game = nil
 
     else
-      if @user_value.nil?
-        menu(message)
-      else
-        bot.api.send_message(chat_id: message.chat.id, text: "It's not correct")
-        bot.api.send_message(chat_id: message.chat.id, text: @game.values.join(''),reply_markup: collect_keyboard(game))
-      end
+      @user_value.nil? ? menu : invalid_input
     end
   end
 
@@ -187,7 +151,7 @@ class TelegramBot
     end
   end
 
-  def menu(message)
+  def menu
     answers =
         Telegram::Bot::Types::ReplyKeyboardMarkup.new(
           keyboard: [
@@ -196,9 +160,39 @@ class TelegramBot
           one_time_keyboard: true
         )
 
-    bot.api.send_message(chat_id: message.chat.id, text: 'What you want to do?', reply_markup: answers)
+    bot.api.send_message(chat_id: @message.chat.id, text: 'What you want to do?', reply_markup: answers)
 
     @user_value = nil
     @bot_value = nil
+  end
+
+  def nobody_win
+    bot.api.send_message(chat_id: @message.chat.id, text: @game.values.join(''))
+    bot.api.send_message(chat_id: @message.chat.id, text: 'No one wins, great game')
+    menu
+  end
+
+  def finish_game
+    bot.api.send_message(chat_id: @message.chat.id, text: @game.values.join(''))
+    bot.api.send_message(chat_id: @message.chat.id, text: @winner_message)
+    menu
+  end
+
+  def next_step
+    bot.api.send_message(chat_id: @message.chat.id, text: 'Select one:')
+    bot.api.send_message(chat_id: @message.chat.id, text: @game.values.join(''),reply_markup: collect_keyboard(@game))
+  end
+
+  def pin_sides(side)
+    @user_value = (side.include?("✖️")) ? "✖️" : "⚫️"
+    @bot_value = (side.include?("✖️")) ? "⚫️" : "✖️"
+
+    pinned = bot.api.send_message(chat_id: @message.chat.id, text: "Bot:#{@bot_value}\nYou:#{@user_value}")
+    bot.api.pin_chat_message(chat_id: @message.chat.id, message_id: pinned['result']['message_id'])
+  end
+
+  def invalid_input
+    bot.api.send_message(chat_id: @message.chat.id, text: "It's not correct")
+    bot.api.send_message(chat_id: @message.chat.id, text: @game.values.join(''),reply_markup: collect_keyboard(game))
   end
 end
