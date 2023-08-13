@@ -70,22 +70,37 @@ class TelegramBot
       my_value = message.text[-3..-2].to_sym
       @game[my_value] = user_value
 
+
       if game_over?(game)
         bot.api.send_message(chat_id: message.chat.id, text: @game.values.join(''))
         bot.api.send_message(chat_id: message.chat.id, text: @winner_message)
         menu(message)
       else
-        bot_choose(game, bot_value)
+        if @game.values.include?('⬜️')
+          bot_choose(game, bot_value)
 
-        if game_over?(game)
-          bot.api.send_message(chat_id: message.chat.id, text: @game.values.join(''))
-          bot.api.send_message(chat_id: message.chat.id, text: @winner_message)
-          menu(message)
+          if game_over?(game)
+            bot.api.send_message(chat_id: message.chat.id, text: @game.values.join(''))
+            bot.api.send_message(chat_id: message.chat.id, text: @winner_message)
+            menu(message)
+          else
+            if @game.values.include?('⬜️')
+              bot.api.send_message(chat_id: message.chat.id, text: 'Select one:')
+              bot.api.send_message(chat_id: message.chat.id, text: @game.values.join(''),reply_markup: collect_keyboard(game))
+            else
+              bot.api.send_message(chat_id: message.chat.id, text: @game.values.join(''))
+              bot.api.send_message(chat_id: message.chat.id, text: 'No one wins, great game')
+              menu(message)
+            end
+          end
         else
-          bot.api.send_message(chat_id: message.chat.id, text: 'Select one:')
-          bot.api.send_message(chat_id: message.chat.id, text: @game.values.join(''),reply_markup: collect_keyboard(game))
+          bot.api.send_message(chat_id: message.chat.id, text: @game.values.join(''))
+          bot.api.send_message(chat_id: message.chat.id, text: 'No one wins, great game')
+          menu(message)
         end
       end
+
+
 
     when "I'm out"
       kb = Telegram::Bot::Types::ReplyKeyboardMarkup.new(keyboard: [[{ text: "/start" }]], one_time_keyboard: true)
