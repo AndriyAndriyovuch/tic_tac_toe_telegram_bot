@@ -10,8 +10,6 @@ WIN_COMBINATIONS = [
 class TelegramBot
   attr_accessor :game, :user_value, :bot_value, :winner
 
-  TOKEN = TELEGRAM_TOKEN.freeze
-
   def run
     @game = new_game
     @user_value = nil
@@ -24,7 +22,7 @@ class TelegramBot
   end
 
   def bot
-    Telegram::Bot::Client.run(TOKEN) { |bot| return bot }
+    Telegram::Bot::Client.run(TELEGRAM_TOKEN) { |bot| return bot }
   end
 
   def new_message(message, game, user_value, bot_value)
@@ -33,9 +31,9 @@ class TelegramBot
     my_message = message.text.include?("⬜️") ? "⬜️" : message.text
 
     case my_message
+
     when "/start"
       bot.api.send_message(chat_id: message.chat.id, text: "Hi #{message.from.first_name}, let's play the game")
-
       menu
 
     when "Start a new game"
