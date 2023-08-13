@@ -1,8 +1,14 @@
 require_relative "credentials"
 require "telegram/bot"
 
+WIN_COMBINATIONS = [
+  [:A1, :A2, :A3], [:B1, :B2, :B3], [:C1, :C2, :C3], # Horizontal
+  [:A1, :B1, :C1], [:A2, :B2, :C2], [:A3, :B3, :C3], # Vertical
+  [:A1, :B2, :C3], [:A3, :B2, :C1] # Diagonal
+].freeze
+
 class TelegramBot
-  attr_accessor :game, :user_value, :bot_value
+  attr_accessor :game, :user_value, :bot_value, :winner
 
   TOKEN = TELEGRAM_TOKEN.freeze
 
@@ -25,12 +31,13 @@ class TelegramBot
 
     case my_message
     when "/start"
+      bot.api.send_message(chat_id: message.chat.id, text: "Hi #{message.from.first_name}, let's play the game")
+
       menu(message)
 
     when "Start a new game"
       @game = new_game
 
-      bot.api.send_message(chat_id: message.chat.id, text: "Hi #{message.from.first_name}, let's play the game")
       bot.api.send_message(chat_id: message.chat.id, text: @game.values.join(''))
 
       select_fighter(message)
@@ -57,12 +64,14 @@ class TelegramBot
 
       if game_over?(game)
         bot.api.send_message(chat_id: message.chat.id, text: @game.values.join(''))
+        bot.api.send_message(chat_id: message.chat.id, text: @winner_message)
         menu(message)
       else
         bot_choose(game, bot_value)
 
         if game_over?(game)
           bot.api.send_message(chat_id: message.chat.id, text: @game.values.join(''))
+          bot.api.send_message(chat_id: message.chat.id, text: @winner_message)
           menu(message)
         else
           bot.api.send_message(chat_id: message.chat.id, text: 'Select one:')
@@ -71,17 +80,16 @@ class TelegramBot
       end
 
     when "I'm out"
-      kb = Telegram::Bot::Types::ReplyKeyboardRemove.new(remove_keyboard: true)
+      kb = Telegram::Bot::Types::ReplyKeyboardMarkup.new(keyboard: [[{ text: "/start" }]], one_time_keyboard: true)
 
       bot.api.send_message(chat_id: message.chat.id, text: 'Sorry to see you go :(', reply_markup: kb)
       @game = nil
-
 
     else
       if @user_value.nil?
         menu(message)
       else
-        bot.api.send_message(chat_id: message.chat.id, text: 'It;s not correct')
+        bot.api.send_message(chat_id: message.chat.id, text: "It's not correct")
         bot.api.send_message(chat_id: message.chat.id, text: @game.values.join(''),reply_markup: collect_keyboard(game))
       end
     end
@@ -134,18 +142,26 @@ class TelegramBot
       end
     end
 
-    @game[available[rand(available.length)]] = bot_value
+    @game[available[rand(available.length)]] = @bot_value
   end
 
   def game_over?(game)
-    @game[:A1] == @game[:A2] && @game[:A1] == @game[:A3] && @game[:A3] != "⬜️" ||
-        @game[:B1] == @game[:B2] && @game[:B1] == @game[:B3] && @game[:B3] != "⬜️"  || # HORIZONTAL
-        @game[:C1] == @game[:C2] && @game[:C1] == @game[:C3] && @game[:C3] != "⬜️"  || # HORIZONTAL
-        @game[:A1] == @game[:B1] && @game[:A1] == @game[:C1] && @game[:C1] != "⬜️"  || # VERTICAL
-        @game[:A2] == @game[:B2] && @game[:A2] == @game[:C2] && @game[:C2] != "⬜️"  || # VERTICAL
-        @game[:A3] == @game[:B3] && @game[:A3] == @game[:C3] && @game[:C3] != "⬜️"  || # VERTICAL
-        @game[:A1] == @game[:B2] && @game[:A1] == @game[:C3] && @game[:C3] != "⬜️"  || # DIAGONAL
-        @game[:A3] == @game[:B2] && @game[:A3] == @game[:C1] && @game[:C1] != "⬜️"  # DIAGONAL
+    @winner = nil
+
+    WIN_COMBINATIONS.each do |combo|
+      values = combo.map { |position| game[position] }
+
+      if values.uniq.length == 1 && values[0] != "⬜️"
+        @winner = values[0]
+        break
+      end
+    end
+
+    if @winner.nil?
+      false
+    else
+      @winner_message = (user_value == @winner) ? "You win, great 🏆" : "Bot wins, better luck next time 😔"
+    end
   end
 
   def menu(message)
