@@ -27,6 +27,8 @@ class TelegramBot
   end
 
   def new_message(message, game, user_value, bot_value)
+    return if message.text.nil?
+
     my_message = message.text.include?("⬜️") ? "⬜️" : message.text
 
     case my_message
@@ -46,18 +48,24 @@ class TelegramBot
       @user_value = "✖️"
       @bot_value = "⚫️"
 
+      pinned = bot.api.send_message(chat_id: message.chat.id, text: "Bot:#{@bot_value}\nYou:#{@user_value}")
+      bot.api.pin_chat_message(chat_id: message.chat.id, message_id: pinned['result']['message_id'])
+
       bot.api.send_message(chat_id: message.chat.id, text: 'Select one:')
       bot.api.send_message(chat_id: message.chat.id, text: @game.values.join(''),reply_markup: collect_keyboard(game))
 
+      return
     when "You first: ⚫️"
       @user_value = "⚫️"
       @bot_value = "✖️"
+
+      pinned = bot.api.send_message(chat_id: message.chat.id, text: "Bot:#{@bot_value}\nYou:#{@user_value}")
+      bot.api.pin_chat_message(chat_id: message.chat.id, message_id: pinned['result']['message_id'])
 
       bot_choose(game, bot_value)
 
       bot.api.send_message(chat_id: message.chat.id, text: 'Select one:')
       bot.api.send_message(chat_id: message.chat.id, text: @game.values.join(''),reply_markup: collect_keyboard(game))
-
     when "⬜️"
       my_value = message.text[-3..-2].to_sym
       @game[my_value] = user_value
